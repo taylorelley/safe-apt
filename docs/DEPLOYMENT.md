@@ -43,7 +43,7 @@ This guide provides detailed instructions for deploying safe-apt in production e
 
 Calculate required disk space:
 
-```
+```text
 Total = Mirror Size + Snapshots + Scans + Logs
 ```
 
@@ -210,7 +210,7 @@ sudo aptly mirror update ubuntu-jammy
 
 ### 3. Configure SSL Certificate
 
-**Option A: Let's Encrypt (Recommended)**
+#### Option A: Let's Encrypt (Recommended)
 
 ```bash
 # Obtain certificate
@@ -219,7 +219,7 @@ sudo certbot --nginx -d apt.yourdomain.com
 # Auto-renewal is configured by default
 ```
 
-**Option B: Self-Signed (Testing Only)**
+#### Option B: Self-Signed (Testing Only)
 
 ```bash
 sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
@@ -622,5 +622,5 @@ jq -r '.vulnerabilities[] | select(.severity=="CRITICAL") | .cve_id' /opt/apt-mi
 ## Support
 
 For issues and questions:
-- GitHub Issues: https://github.com/taylorelley/safe-apt/issues
+- [GitHub Issues](https://github.com/taylorelley/safe-apt/issues)
 - Documentation: See README.md and DESIGN.md

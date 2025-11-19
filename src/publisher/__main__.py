@@ -71,13 +71,16 @@ def main():
     # Build approved list
     approved = builder.build_approved_list(packages, output_file=output_filename)
 
+    # Compute actual written path (file is written to builder's approvals_dir)
+    actual_written_path = Path(builder.approvals_dir) / output_filename
+
     # Print statistics
     stats = builder.get_approval_stats()
     logger.info(f"Total scans: {stats['total_scans']}")
     logger.info(f"Approved: {stats['approved']}")
     logger.info(f"Blocked: {stats['blocked']}")
     logger.info(f"Errors: {stats['errors']}")
-    logger.info(f"Approved {len(approved)} packages, written to: {output_path.absolute()}")
+    logger.info(f"Approved {len(approved)} packages, written to: {actual_written_path.absolute()}")
 
     sys.exit(0)
 

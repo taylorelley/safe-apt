@@ -196,7 +196,7 @@ class ApprovedListBuilder:
                     f.write(f"{package_key}\n")
 
             self.logger.info(f"Approved list written to {output_path}")
-        except IOError as e:
+        except IOError:
             self.logger.exception("Failed to write approved list")
             raise
 

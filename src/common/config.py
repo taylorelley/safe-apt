@@ -36,9 +36,8 @@ def load_config(config_path: str = "/opt/apt-mirror-system/config.yaml") -> Dict
         config = {}
 
     if not isinstance(config, dict):
-        raise ValueError(
-            f"Configuration file must contain a mapping (dictionary) at root, "
-            f"got {type(config).__name__}"
+        raise TypeError(
+            f"Configuration root must be a mapping, got {type(config).__name__}"
         )
 
     # Expand environment variables

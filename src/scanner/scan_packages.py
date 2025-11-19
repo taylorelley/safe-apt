@@ -405,8 +405,9 @@ class PackageScanner:
             with output_path.open("w") as f:
                 json.dump(result.to_dict(), f, indent=2)
             self.logger.debug(f"Scan result saved to {output_path}")
-        except Exception as e:
+        except (IOError, OSError):
             self.logger.exception("Failed to save scan result")
+            raise
 
     def update_scanner_db(self) -> bool:
         """Update vulnerability database.
