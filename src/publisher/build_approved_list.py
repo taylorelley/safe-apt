@@ -7,7 +7,7 @@ only packages that passed security scans.
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Set, Dict, Any
+from typing import List, Set, Dict, Any, Optional
 
 from ..common.logger import get_logger
 
@@ -127,7 +127,7 @@ class ApprovedListBuilder:
 
     def _find_latest_scan(
         self, package_name: str, scan_results: List[Dict[str, Any]]
-    ) -> Dict[str, Any] | None:
+    ) -> Optional[Dict[str, Any]]:
         """Find the most recent scan for a package.
 
         Args:
@@ -197,7 +197,7 @@ class ApprovedListBuilder:
 
             self.logger.info(f"Approved list written to {output_path}")
         except IOError as e:
-            self.logger.error(f"Failed to write approved list: {e}")
+            self.logger.exception("Failed to write approved list")
             raise
 
     def get_approval_stats(self) -> Dict[str, int]:

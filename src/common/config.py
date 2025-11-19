@@ -31,6 +31,16 @@ def load_config(config_path: str = "/opt/apt-mirror-system/config.yaml") -> Dict
     with config_file.open("r") as f:
         config = yaml.safe_load(f)
 
+    # Validate config structure
+    if config is None:
+        config = {}
+
+    if not isinstance(config, dict):
+        raise ValueError(
+            f"Configuration file must contain a mapping (dictionary) at root, "
+            f"got {type(config).__name__}"
+        )
+
     # Expand environment variables
     config = _expand_env_vars(config)
 

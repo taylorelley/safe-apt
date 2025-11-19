@@ -63,7 +63,22 @@ DIFF_OUTPUT=$(aptly snapshot diff "${OLD_SNAPSHOT}" "${NEW_SNAPSHOT}" 2>&1 || tr
 CHANGES_FILE="${SNAPSHOTS_DIR}/changes-${OLD_SNAPSHOT}-to-${NEW_SNAPSHOT}.txt"
 
 # Extract added and changed packages (lines starting with + or !)
-echo "${DIFF_OUTPUT}" | grep -E '^\+|^!' | sed 's/^[+!]//' | sed 's/ ->.*//' > "${CHANGES_FILE}"
+# For lines with ->, extract the new package (right side)
+{
+    echo "${DIFF_OUTPUT}" | grep -E '^\+|^!' || true
+} | while IFS= read -r line; do
+    # Remove leading +/! marker
+    clean_line="${line#[+!]}"
+
+    # Check if line contains ->
+    if [[ "${clean_line}" =~ "->" ]]; then
+        # Extract right side (new package) after ->
+        echo "${clean_line}" | sed 's/.*-> *//' | sed 's/^!//'
+    else
+        # No ->, just output the cleaned line
+        echo "${clean_line}"
+    fi
+done > "${CHANGES_FILE}"
 
 CHANGE_COUNT=$(wc -l < "${CHANGES_FILE}")
 

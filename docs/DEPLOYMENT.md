@@ -420,7 +420,11 @@ sudo aptly snapshot list | grep staging- | sort | head -n -7 | xargs -I {} sudo 
 find /opt/apt-mirror-system/scans -name "*.json" -mtime +30 -delete
 
 # Review security policy effectiveness
-python3 -m src.publisher --stats
+# Count approved vs blocked packages
+jq -r '.status' /opt/apt-mirror-system/scans/*.json 2>/dev/null | sort | uniq -c
+
+# Or review recent scan statistics
+grep -E "BLOCKED|APPROVED" /opt/apt-mirror-system/logs/scanner.log | tail -100
 ```
 
 ### Updates

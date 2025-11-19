@@ -16,6 +16,8 @@ SCANS_DIR="${SCANS_DIR:-/opt/apt-mirror-system/scans}"
 APPROVALS_DIR="${APPROVALS_DIR:-/opt/apt-mirror-system/approvals}"
 SCANNER_TYPE="${SCANNER_TYPE:-trivy}"
 MAX_SCAN_AGE_HOURS="${MAX_SCAN_AGE_HOURS:-24}"
+APTLY_POOL="${APTLY_POOL:-/var/lib/aptly/pool}"
+PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 # Logging
 TIMESTAMP=$(date +%Y-%m-%dT%H:%M:%S)
@@ -126,14 +128,46 @@ while IFS= read -r package_key; do
 
     # Rescan if needed
     if [ "${needs_rescan}" = true ]; then
-        # Here we would normally call the Python scanner
-        # For now, log the package that needs rescanning
         log "Package ${package_name} requires rescanning"
-        RESCAN_COUNT=$((RESCAN_COUNT + 1))
 
-        # Note: In production, this would invoke:
-        # python3 -m src.scanner.scan_packages "${package_path}"
-        # But we need the actual .deb file path from aptly pool
+        # Find .deb file in aptly pool
+        # Aptly pool structure: pool/component/first_letter/package_name/package_file.deb
+        first_letter="${package_name:0:1}"
+        deb_file=""
+
+        # Search for the .deb file in pool
+        for component in main restricted universe multiverse; do
+            search_path="${APTLY_POOL}/${component}/${first_letter}/${package_name}"
+
+            if [ -d "${search_path}" ]; then
+                # Find matching .deb file
+                found_deb=$(find "${search_path}" -name "${package_key}.deb" -print -quit 2>/dev/null || echo "")
+
+                if [ -n "${found_deb}" ] && [ -f "${found_deb}" ]; then
+                    deb_file="${found_deb}"
+                    break
+                fi
+            fi
+        done
+
+        # If not found, try direct search in entire pool
+        if [ -z "${deb_file}" ]; then
+            deb_file=$(find "${APTLY_POOL}" -name "${package_key}.deb" -print -quit 2>/dev/null || echo "")
+        fi
+
+        if [ -z "${deb_file}" ] || [ ! -f "${deb_file}" ]; then
+            log_error "Could not find .deb file for ${package_key}"
+            continue
+        fi
+
+        # Run scanner
+        log "Scanning ${deb_file}"
+        if ${PYTHON_BIN} -m src.scanner "${deb_file}" >> "${LOG_FILE}" 2>&1; then
+            log "Successfully rescanned ${package_name}"
+            RESCAN_COUNT=$((RESCAN_COUNT + 1))
+        else
+            log_error "Failed to rescan ${package_name}"
+        fi
     fi
 
 done < "${TEMP_PACKAGE_LIST}"

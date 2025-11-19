@@ -4,9 +4,9 @@ import sys
 import argparse
 from pathlib import Path
 
-from .build_approved_list import ApprovedListBuilder
-from ..common.logger import setup_logger
-from ..common.config import load_config
+from src.publisher.build_approved_list import ApprovedListBuilder
+from src.common.logger import setup_logger
+from src.common.config import load_config
 
 
 def main():
@@ -49,10 +49,15 @@ def main():
         level=config.get("logging", {}).get("level", "INFO"),
     )
 
-    # Initialize builder
+    # Parse output path
+    output_path = Path(args.output)
+    output_dir = output_path.parent
+    output_filename = output_path.name
+
+    # Initialize builder with output directory
     builder = ApprovedListBuilder(
         scans_dir=config.get("system", {}).get("scans_dir", "/opt/apt-mirror-system/scans"),
-        approvals_dir=config.get("system", {}).get(
+        approvals_dir=str(output_dir) if output_dir != Path('.') else config.get("system", {}).get(
             "approvals_dir", "/opt/apt-mirror-system/approvals"
         ),
     )
@@ -64,7 +69,7 @@ def main():
     logger.info(f"Processing {len(packages)} packages")
 
     # Build approved list
-    approved = builder.build_approved_list(packages, output_file=Path(args.output).name)
+    approved = builder.build_approved_list(packages, output_file=output_filename)
 
     # Print statistics
     stats = builder.get_approval_stats()
@@ -72,7 +77,7 @@ def main():
     logger.info(f"Approved: {stats['approved']}")
     logger.info(f"Blocked: {stats['blocked']}")
     logger.info(f"Errors: {stats['errors']}")
-    logger.info(f"Approved packages written to: {args.output}")
+    logger.info(f"Approved {len(approved)} packages, written to: {output_path.absolute()}")
 
     sys.exit(0)
 

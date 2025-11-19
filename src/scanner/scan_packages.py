@@ -292,7 +292,7 @@ class PackageScanner:
                     {
                         "cve_id": vuln.get("id", ""),
                         "severity": vuln.get("severity", "UNKNOWN"),
-                        "cvss_score": vuln.get("cvss", [{}])[0].get("score", 0.0)
+                        "cvss_score": vuln.get("cvss", [{}])[0].get("metrics", {}).get("baseScore", 0.0)
                         if vuln.get("cvss")
                         else 0.0,
                         "package": match.get("artifact", {}).get("name", ""),
