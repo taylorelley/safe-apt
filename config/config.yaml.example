@@ -1,0 +1,129 @@
+# safe-apt Configuration Template
+# Copy this file to config.yaml and customize for your environment
+
+# System paths
+system:
+  # Base directory for safe-apt operations
+  base_dir: /opt/apt-mirror-system
+  # Directory for scan results
+  scans_dir: /opt/apt-mirror-system/scans
+  # Directory for snapshot metadata
+  snapshots_dir: /opt/apt-mirror-system/snapshots
+  # Directory for approved package lists
+  approvals_dir: /opt/apt-mirror-system/approvals
+  # Directory for logs
+  logs_dir: /opt/apt-mirror-system/logs
+  # Aptly data directory
+  aptly_dir: /var/lib/aptly
+
+# Mirroring configuration
+mirrors:
+  # Primary mirror to sync from
+  - name: ubuntu-jammy
+    archive_url: http://archive.ubuntu.com/ubuntu
+    distribution: jammy
+    components:
+      - main
+      - restricted
+      - universe
+      - multiverse
+    architectures:
+      - amd64
+    # Filter packages (optional)
+    filter: ""
+    # Enable source packages
+    with_sources: false
+    # Enable installer packages
+    with_installer: false
+
+# Scanning configuration
+scanner:
+  # Scanner to use: trivy or grype
+  type: trivy
+  # Timeout for scanning a single package (seconds)
+  timeout: 300
+  # Parallel scanning workers
+  workers: 4
+  # Scanner update frequency (hours)
+  update_interval: 24
+  # CVE database freshness threshold (hours)
+  max_db_age: 48
+  # Scan output format
+  output_format: json
+
+# Security policy
+policy:
+  # Block packages with any CVE
+  block_any_cve: false
+  # Minimum CVSS score to block (0.0-10.0)
+  min_cvss_score: 7.0
+  # Severity levels to block (CRITICAL, HIGH, MEDIUM, LOW, UNKNOWN)
+  block_severities:
+    - CRITICAL
+    - HIGH
+  # Allow specific CVEs (override blocks)
+  allowed_cves: []
+  # Block specific CVEs regardless of score
+  blocked_cves: []
+
+# Publishing configuration
+publishing:
+  # Distribution name for published repository
+  distribution: jammy
+  # Components to publish
+  components:
+    - main
+  # GPG key ID for signing
+  gpg_key_id: ""
+  # GPG passphrase (use environment variable in production)
+  gpg_passphrase_env: GPG_PASSPHRASE
+  # Published repository prefix
+  prefix: ""
+
+# Rescanning configuration
+rescan:
+  # Enable nightly rescanning
+  enabled: true
+  # Rescan interval (hours)
+  interval: 24
+  # Keep old scan results (days)
+  retention_days: 30
+
+# Logging configuration
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: INFO
+  # Log format
+  format: "%(asctime)s [%(levelname)s] [%(name)s] %(message)s"
+  # Date format (ISO 8601)
+  date_format: "%Y-%m-%dT%H:%M:%S"
+  # Enable file logging
+  file_logging: true
+  # Enable console logging
+  console_logging: true
+  # Log rotation (MB)
+  max_bytes: 10485760
+  # Backup count
+  backup_count: 5
+
+# Retry configuration
+retry:
+  # Maximum retry attempts
+  max_attempts: 4
+  # Initial backoff delay (seconds)
+  initial_delay: 2
+  # Backoff multiplier
+  backoff_multiplier: 2
+  # Operations to retry
+  retry_operations:
+    - mirror_update
+    - snapshot_create
+    - publish_switch
+
+# Notifications (future extension)
+notifications:
+  enabled: false
+  # email, slack, webhook
+  type: email
+  # Notification settings
+  settings: {}
