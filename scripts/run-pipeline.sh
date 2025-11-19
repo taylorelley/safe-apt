@@ -54,14 +54,27 @@ log "========================================="
 # Step 1: Sync mirror and create snapshot
 log "Step 1: Syncing mirror ${MIRROR_NAME}"
 
-NEW_SNAPSHOT=$(bash "${SCRIPT_DIR}/sync-mirror.sh" 2>&1 | tee -a "${LOG_FILE}" | tail -n 1)
+# Run sync-mirror.sh and capture output to temp file
+SYNC_TEMP=$(mktemp)
+if bash "${SCRIPT_DIR}/sync-mirror.sh" > "${SYNC_TEMP}" 2>&1; then
+    # Sync succeeded, append output to log and extract snapshot name
+    cat "${SYNC_TEMP}" >> "${LOG_FILE}"
+    NEW_SNAPSHOT=$(tail -n 1 "${SYNC_TEMP}")
+    rm -f "${SYNC_TEMP}"
 
-if [ -z "${NEW_SNAPSHOT}" ]; then
-    log_error "Failed to create snapshot"
+    if [ -z "${NEW_SNAPSHOT}" ]; then
+        log_error "Sync succeeded but no snapshot name returned"
+        exit 1
+    fi
+
+    log "New snapshot created: ${NEW_SNAPSHOT}"
+else
+    # Sync failed, log error output and exit
+    log_error "Mirror sync failed:"
+    cat "${SYNC_TEMP}" | tee -a "${LOG_FILE}" >&2
+    rm -f "${SYNC_TEMP}"
     exit 1
 fi
-
-log "New snapshot created: ${NEW_SNAPSHOT}"
 
 # Step 2: Detect changes from previous snapshot
 log "Step 2: Detecting changed packages"
@@ -75,7 +88,7 @@ if [ -z "${PREVIOUS_SNAPSHOT}" ]; then
 
     # Get all packages from new snapshot
     CHANGES_FILE="${SNAPSHOTS_DIR}/all-packages-${NEW_SNAPSHOT}.txt"
-    aptly snapshot show -with-packages "${NEW_SNAPSHOT}" | grep '_' > "${CHANGES_FILE}" || true
+    aptly snapshot show -with-packages "${NEW_SNAPSHOT}" | grep '_' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > "${CHANGES_FILE}" || true
 else
     log "Comparing ${PREVIOUS_SNAPSHOT} -> ${NEW_SNAPSHOT}"
 
@@ -103,6 +116,9 @@ else
 
     # Read package list and scan each one
     while IFS= read -r package_key; do
+        # Trim leading and trailing whitespace
+        package_key=$(echo "${package_key}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
         # Skip empty lines
         if [ -z "${package_key}" ]; then
             continue
@@ -158,12 +174,12 @@ log "Step 4: Building approved package list"
 
 # Get all packages from new snapshot
 ALL_PACKAGES_FILE="${SNAPSHOTS_DIR}/all-packages-${NEW_SNAPSHOT}.txt"
-aptly snapshot show -with-packages "${NEW_SNAPSHOT}" | grep '_' > "${ALL_PACKAGES_FILE}" || true
+aptly snapshot show -with-packages "${NEW_SNAPSHOT}" | grep '_' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > "${ALL_PACKAGES_FILE}" || true
 
 # Run approval list builder
 APPROVED_LIST="${APPROVALS_DIR}/approved.txt"
 
-if ${PYTHON_BIN} -m src.publisher.build_approved_list \
+if ${PYTHON_BIN} -m src.publisher \
     --package-list "${ALL_PACKAGES_FILE}" \
     --output "${APPROVED_LIST}" >> "${LOG_FILE}" 2>&1; then
     log "Approved list built successfully"
