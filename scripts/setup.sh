@@ -52,7 +52,7 @@ check_dependencies() {
         fi
     done
 
-    # Check for scanner
+    # Check for vulnerability scanner
     if [ "${SCANNER_TYPE}" = "trivy" ]; then
         if ! command -v trivy &> /dev/null; then
             missing_deps+=("trivy")
@@ -63,18 +63,56 @@ check_dependencies() {
         fi
     fi
 
+    # Check for ClamAV (virus scanning)
+    if ! command -v clamscan &> /dev/null; then
+        missing_deps+=("clamav")
+    fi
+
+    # Check for additional security tools
+    for cmd in dpkg-deb readelf; do
+        if ! command -v "${cmd}" &> /dev/null; then
+            missing_deps+=("${cmd}")
+        fi
+    done
+
     if [ ${#missing_deps[@]} -ne 0 ]; then
         log_error "Missing dependencies: ${missing_deps[*]}"
         log "Please install missing dependencies and re-run setup"
         log ""
         log "Installation commands:"
-        log "  Ubuntu/Debian: apt-get install aptly gnupg nginx python3 python3-pip"
+        log "  Ubuntu/Debian base: apt-get install aptly gnupg nginx python3 python3-pip"
+        log "  ClamAV (virus scanning): apt-get install clamav clamav-daemon clamav-freshclam"
+        log "  Security tools: apt-get install binutils dpkg-dev"
         log "  Trivy: https://aquasecurity.github.io/trivy/latest/getting-started/installation/"
         log "  Grype: https://github.com/anchore/grype#installation"
         exit 1
     fi
 
     log "All dependencies satisfied"
+}
+
+setup_clamav() {
+    log "Setting up ClamAV virus scanner..."
+
+    # Stop services for configuration
+    systemctl stop clamav-daemon || true
+    systemctl stop clamav-freshclam || true
+
+    # Update virus definitions
+    log "Updating ClamAV virus definitions (this may take a few minutes)..."
+    freshclam --quiet || log_warning "Initial virus definition update had warnings (this is normal)"
+
+    # Start services
+    systemctl start clamav-freshclam || log_warning "Could not start clamav-freshclam service"
+    systemctl enable clamav-freshclam || log_warning "Could not enable clamav-freshclam service"
+
+    # Wait for freshclam to complete
+    sleep 5
+
+    systemctl start clamav-daemon || log_warning "Could not start clamav-daemon service"
+    systemctl enable clamav-daemon || log_warning "Could not enable clamav-daemon service"
+
+    log "ClamAV virus scanner configured"
 }
 
 create_directories() {
@@ -250,6 +288,7 @@ main() {
     install_python_packages
     copy_scripts
     setup_configuration
+    setup_clamav
     setup_aptly
     setup_nginx
     setup_cron
