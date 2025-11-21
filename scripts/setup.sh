@@ -95,24 +95,105 @@ setup_clamav() {
     log "Setting up ClamAV virus scanner..."
 
     # Stop services for configuration
-    systemctl stop clamav-daemon || true
-    systemctl stop clamav-freshclam || true
+    systemctl stop clamav-daemon 2>/dev/null || true
+    systemctl stop clamav-freshclam 2>/dev/null || true
 
     # Update virus definitions
     log "Updating ClamAV virus definitions (this may take a few minutes)..."
-    freshclam --quiet || log_warning "Initial virus definition update had warnings (this is normal)"
+    if ! freshclam --quiet; then
+        log_error "Failed to update ClamAV virus definitions"
+        log_error "This is critical for virus scanning functionality"
+        exit 1
+    fi
 
-    # Start services
-    systemctl start clamav-freshclam || log_warning "Could not start clamav-freshclam service"
-    systemctl enable clamav-freshclam || log_warning "Could not enable clamav-freshclam service"
+    # Verify database files exist
+    local db_dir="/var/lib/clamav"
+    local required_dbs=("main.cvd" "daily.cvd" "bytecode.cvd")
+    local missing_dbs=()
 
-    # Wait for freshclam to complete
-    sleep 5
+    log "Verifying ClamAV database files..."
+    for db_file in "${required_dbs[@]}"; do
+        # Check for .cvd or .cld extension (cld is updated database format)
+        if [ ! -f "${db_dir}/${db_file}" ] && [ ! -f "${db_dir}/${db_file%.cvd}.cld" ]; then
+            missing_dbs+=("${db_file}")
+        fi
+    done
 
-    systemctl start clamav-daemon || log_warning "Could not start clamav-daemon service"
-    systemctl enable clamav-daemon || log_warning "Could not enable clamav-daemon service"
+    if [ ${#missing_dbs[@]} -ne 0 ]; then
+        log_error "Missing ClamAV database files: ${missing_dbs[*]}"
+        log_error "Cannot proceed without virus definition databases"
+        exit 1
+    fi
 
-    log "ClamAV virus scanner configured"
+    log "ClamAV databases verified"
+
+    # Start and enable freshclam service
+    log "Starting ClamAV update service..."
+    if ! systemctl start clamav-freshclam; then
+        log_error "Failed to start clamav-freshclam service"
+        exit 1
+    fi
+
+    if ! systemctl enable clamav-freshclam; then
+        log_warning "Could not enable clamav-freshclam service for auto-start"
+    fi
+
+    # Wait for freshclam to be active (with timeout)
+    local timeout=30
+    local elapsed=0
+    log "Waiting for freshclam to become active..."
+    while ! systemctl is-active --quiet clamav-freshclam; do
+        sleep 1
+        elapsed=$((elapsed + 1))
+        if [ ${elapsed} -ge ${timeout} ]; then
+            log_error "clamav-freshclam did not become active within ${timeout} seconds"
+            systemctl status clamav-freshclam || true
+            exit 1
+        fi
+    done
+
+    log "freshclam service is active"
+
+    # Start and enable clamd service
+    log "Starting ClamAV daemon..."
+    if ! systemctl start clamav-daemon; then
+        log_error "Failed to start clamav-daemon service"
+        systemctl status clamav-daemon || true
+        exit 1
+    fi
+
+    if ! systemctl enable clamav-daemon; then
+        log_warning "Could not enable clamav-daemon service for auto-start"
+    fi
+
+    # Wait for clamd to be active (with timeout)
+    timeout=60
+    elapsed=0
+    log "Waiting for ClamAV daemon to become active..."
+    while ! systemctl is-active --quiet clamav-daemon; do
+        sleep 1
+        elapsed=$((elapsed + 1))
+        if [ ${elapsed} -ge ${timeout} ]; then
+            log_error "clamav-daemon did not become active within ${timeout} seconds"
+            systemctl status clamav-daemon || true
+            exit 1
+        fi
+    done
+
+    # Verify clamd is actually responding
+    log "Verifying ClamAV daemon functionality..."
+    if ! clamdscan --version &>/dev/null; then
+        log_warning "clamdscan not responding, trying clamscan..."
+        if ! clamscan --version &>/dev/null; then
+            log_error "ClamAV scanner not responding"
+            exit 1
+        fi
+        log_warning "Using clamscan (slower) - clamdscan daemon not responding"
+    else
+        log "ClamAV daemon is responding correctly"
+    fi
+
+    log "ClamAV virus scanner configured and verified"
 }
 
 create_directories() {

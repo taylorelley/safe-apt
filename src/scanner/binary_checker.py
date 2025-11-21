@@ -112,12 +112,21 @@ class BinaryChecker:
             file_list = self._get_file_list(package_path)
 
             if not file_list:
-                self.logger.info("No files found in package")
+                # Empty package is suspicious - dpkg-deb succeeded but returned no files
+                # This could indicate a malformed or empty package (both are unsafe)
+                self.logger.warning(f"Package {package_file.name} contains no files - suspicious")
                 return BinarySafetyResult(
-                    safe=True,
+                    safe=False,
                     files_analyzed=0,
-                    issues_found=[],
-                    warnings=[],
+                    issues_found=[
+                        BinaryIssue(
+                            severity="high",
+                            issue_type="empty_package",
+                            file_path="<package>",
+                            description="Package contains no files (empty or malformed package)",
+                        )
+                    ],
+                    warnings=["Package appears to be empty or have no parseable file entries"],
                     suid_binaries=[],
                     sgid_binaries=[],
                     world_writable_files=[],
@@ -190,6 +199,9 @@ class BinaryChecker:
 
         Returns:
             List of file info dictionaries
+
+        Raises:
+            RuntimeError: If file listing fails (enforces default-deny)
         """
         try:
             result = subprocess.run(
@@ -218,14 +230,17 @@ class BinaryChecker:
             return file_list
 
         except subprocess.CalledProcessError as e:
-            self.logger.warning(f"Failed to get file list: {e}")
-            return []
-        except subprocess.TimeoutExpired:
+            self.logger.error(f"Failed to get file list: {e}")
+            # Re-raise to enforce default-deny: listing failure = unsafe
+            raise RuntimeError(f"File listing failed: {e.stderr.decode() if e.stderr else str(e)}") from e
+        except subprocess.TimeoutExpired as e:
             self.logger.error("File list retrieval timed out")
-            return []
+            # Re-raise to enforce default-deny: timeout = unsafe
+            raise RuntimeError("File listing timed out") from e
         except Exception as e:
             self.logger.exception(f"Error getting file list: {e}")
-            return []
+            # Re-raise to enforce default-deny: any failure = unsafe
+            raise RuntimeError(f"File listing error: {str(e)}") from e
 
     def _analyze_file(self, file_info: Dict[str, str]) -> tuple[List[BinaryIssue], List[str], Set[str]]:
         """Analyze a single file for security issues.
