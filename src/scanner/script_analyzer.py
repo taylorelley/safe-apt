@@ -41,23 +41,19 @@ class ScriptAnalysisResult:
 class ScriptAnalyzer:
     """Analyzer for Debian package maintainer scripts."""
 
-    # Dangerous commands that should not appear in maintainer scripts
-    DANGEROUS_COMMANDS: ClassVar[Dict[str, str]] = {
-        "rm -rf /": "critical",
-        "dd if=/dev/zero of=/dev/": "critical",
-        "mkfs": "critical",
-        ":(){ :|:& };:": "critical",  # Fork bomb
-        "curl | sh": "high",
-        "wget | sh": "high",
-        "curl | bash": "high",
-        "wget | bash": "high",
-        "eval $(": "high",
-        "chmod 777": "medium",
-        "chown -R root:root /": "high",
-        "/dev/tcp/": "medium",  # Reverse shells
-        "/dev/udp/": "medium",
-        "nc -l": "medium",  # Netcat listener
-        "ncat -l": "medium",
+    # Dangerous command patterns (regex patterns with severity and description)
+    # Using regex to avoid false positives from substring matching
+    DANGEROUS_COMMANDS: ClassVar[Dict[str, Tuple[str, str]]] = {
+        r"\brm\s+-[a-zA-Z]*rf?\s+/(?:\s|$|;|\||&)": ("critical", "Recursive deletion of root directory (rm -rf /)"),
+        r"\bdd\s+if=/dev/(?:zero|random)\s+of=/dev/[sh]d": ("critical", "Disk overwrite with dd"),
+        r"\bmkfs\b": ("critical", "Filesystem creation (mkfs)"),
+        r":\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;?\s*:": ("critical", "Fork bomb detected"),
+        r"(?:curl|wget)\s+[^|]*\|\s*(?:ba)?sh\b": ("high", "Pipe from network to shell (curl/wget | bash)"),
+        r"\beval\s*\$\(": ("high", "Dynamic code evaluation with command substitution"),
+        r"\bchmod\s+(?:0?777|a\+rwx)\b": ("medium", "Overly permissive file permissions (chmod 777)"),
+        r"\bchown\s+-R\s+root:root\s+/(?:\s|$|;|\||&)": ("high", "Recursive ownership change of root directory"),
+        r"/dev/(?:tcp|udp)/": ("medium", "Network device access (reverse shell risk)"),
+        r"\b(?:nc|ncat|netcat)\s+-l": ("medium", "Netcat listener (reverse shell risk)"),
     }
 
     # Suspicious patterns
@@ -265,14 +261,14 @@ class ScriptAnalyzer:
             if not stripped or stripped.startswith("#"):
                 continue
 
-            # Check for dangerous commands
-            for dangerous_cmd, severity in self.DANGEROUS_COMMANDS.items():
-                if dangerous_cmd in line:
+            # Check for dangerous commands (using regex patterns)
+            for pattern, (severity, description) in self.DANGEROUS_COMMANDS.items():
+                if re.search(pattern, line, re.IGNORECASE):
                     issues.append(
                         ScriptIssue(
                             severity=severity,
                             issue_type="dangerous_command",
-                            description=f"Dangerous command found: {dangerous_cmd}",
+                            description=description,
                             line_number=line_num,
                             code_snippet=line.strip()[:100],
                         )

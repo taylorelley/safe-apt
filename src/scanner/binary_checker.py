@@ -10,7 +10,7 @@ import subprocess
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import ClassVar, Dict, List, Optional, Set
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from ..common.logger import get_logger
 
@@ -349,25 +349,56 @@ class BinaryChecker:
                 )
 
         # Check for suspicious file locations
-        suspicious_locations = [
+        # Directories to monitor (end with / or are known directories)
+        suspicious_dirs = [
             "/etc/cron",
             "/etc/init.d",
             "/etc/systemd/system",
             "/.ssh/",
             "/root/",
+        ]
+
+        # Specific files to monitor
+        suspicious_files = [
             "/etc/sudoers",
             "/etc/passwd",
             "/etc/shadow",
         ]
 
-        for suspicious_loc in suspicious_locations:
-            if suspicious_loc in file_path:
+        # Normalize file path for comparison
+        normalized_path = os.path.normpath("/" + file_path)
+
+        # Check directory-based matches
+        for suspicious_dir in suspicious_dirs:
+            # Normalize the suspicious directory path
+            norm_dir = os.path.normpath(suspicious_dir.rstrip("/"))
+
+            # Check if file is in this directory or subdirectory
+            # Must be exact path component match, not substring
+            if normalized_path.startswith(norm_dir + os.sep) or normalized_path == norm_dir:
                 issues.append(
                     BinaryIssue(
                         severity="medium",
                         issue_type="sensitive_location",
                         file_path=file_path,
-                        description=f"File in sensitive location: {suspicious_loc}",
+                        description=f"File in sensitive directory: {suspicious_dir}",
+                        permissions=permissions,
+                    )
+                )
+                break
+
+        # Check file-based matches (exact file match)
+        for suspicious_file in suspicious_files:
+            norm_file = os.path.normpath(suspicious_file)
+
+            # Check exact match or basename match
+            if normalized_path == norm_file or os.path.basename(normalized_path) == os.path.basename(norm_file):
+                issues.append(
+                    BinaryIssue(
+                        severity="medium",
+                        issue_type="sensitive_location",
+                        file_path=file_path,
+                        description=f"Sensitive file: {suspicious_file}",
                         permissions=permissions,
                     )
                 )
@@ -399,7 +430,7 @@ class BinaryChecker:
 
         return issues, warnings, flags
 
-    def check_elf_binary(self, binary_path: str) -> Dict[str, any]:
+    def check_elf_binary(self, binary_path: str) -> Dict[str, Any]:
         """Check ELF binary for security features.
 
         Args:

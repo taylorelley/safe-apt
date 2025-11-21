@@ -189,7 +189,7 @@ class TestScriptAnalyzer:
         assert len(issues) > 0
         critical_issues = [i for i in issues if i.severity == "critical"]
         assert len(critical_issues) > 0
-        assert any("rm -rf /" in str(i.description) for i in critical_issues)
+        assert any("root directory" in i.description.lower() for i in critical_issues)
 
     def test_curl_pipe_bash_detection(self):
         """Test detection of curl | bash pattern."""
@@ -221,6 +221,28 @@ class TestScriptAnalyzer:
             # Should raise RuntimeError, not return empty dict
             with pytest.raises(RuntimeError, match="extraction failed"):
                 analyzer._extract_maintainer_scripts("/fake/package.deb")
+
+    def test_no_false_positives_dangerous_commands(self):
+        """Test that dangerous command patterns don't trigger false positives."""
+        from src.scanner.script_analyzer import ScriptAnalyzer
+
+        analyzer = ScriptAnalyzer()
+
+        # Test cases that should NOT trigger dangerous command detection
+        safe_script = """#!/bin/bash
+        # chmod 7777 should not match chmod 777 pattern
+        chmod 7777 /tmp/myfile
+        # rm -rf /var/log should not match rm -rf / pattern
+        rm -rf /var/log/oldlogs
+        # chmod on /etc/cronfile should not match /etc/cron directory
+        chmod 644 /etc/cronfile
+        """
+
+        issues, _warnings = analyzer._analyze_script("postinst", safe_script)
+
+        # Should not detect any dangerous commands (only low-severity patterns may match)
+        critical_issues = [i for i in issues if i.severity == "critical"]
+        assert len(critical_issues) == 0, f"False positive critical issues: {[i.description for i in critical_issues]}"
 
 
 class TestBinaryChecker:
@@ -322,6 +344,37 @@ class TestBinaryChecker:
 
         finally:
             Path(test_file).unlink()
+
+    def test_no_false_positives_path_matching(self):
+        """Test that path matching doesn't trigger false positives."""
+        from src.scanner.binary_checker import BinaryChecker
+
+        checker = BinaryChecker()
+
+        # Test cases that should NOT trigger sensitive location detection
+        safe_files = [
+            {
+                "permissions": "-rw-r--r--",
+                "path": "etc/cronfile",  # Not /etc/cron directory
+                "raw": "-rw-r--r-- root/root 1234 2023-04-18 12:34 ./etc/cronfile",
+            },
+            {
+                "permissions": "-rw-r--r--",
+                "path": "var/etc/cron/tab",  # Contains "etc/cron" but not in /etc/cron
+                "raw": "-rw-r--r-- root/root 1234 2023-04-18 12:34 ./var/etc/cron/tab",
+            },
+            {
+                "permissions": "-rw-r--r--",
+                "path": "usr/share/passwd.txt",  # Contains "passwd" but not /etc/passwd
+                "raw": "-rw-r--r-- root/root 1234 2023-04-18 12:34 ./usr/share/passwd.txt",
+            },
+        ]
+
+        for file_info in safe_files:
+            issues, _warnings, _flags = checker._analyze_file(file_info)
+            # Should not detect sensitive location
+            sensitive_issues = [i for i in issues if i.issue_type == "sensitive_location"]
+            assert len(sensitive_issues) == 0, f"False positive for {file_info['path']}: {[i.description for i in sensitive_issues]}"
 
 
 class TestIntegrityChecker:
