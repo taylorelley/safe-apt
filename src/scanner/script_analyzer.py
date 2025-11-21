@@ -10,7 +10,7 @@ import tempfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import ClassVar, Dict, List, Optional, Set, Tuple
 
 from ..common.logger import get_logger
 
@@ -42,7 +42,7 @@ class ScriptAnalyzer:
     """Analyzer for Debian package maintainer scripts."""
 
     # Dangerous commands that should not appear in maintainer scripts
-    DANGEROUS_COMMANDS = {
+    DANGEROUS_COMMANDS: ClassVar[Dict[str, str]] = {
         "rm -rf /": "critical",
         "dd if=/dev/zero of=/dev/": "critical",
         "mkfs": "critical",
@@ -61,7 +61,7 @@ class ScriptAnalyzer:
     }
 
     # Suspicious patterns
-    SUSPICIOUS_PATTERNS = {
+    SUSPICIOUS_PATTERNS: ClassVar[Dict[str, Tuple[str, str]]] = {
         r"base64.*decode": ("medium", "Base64 decoding (potential obfuscation)"),
         r"(curl|wget).*\|\s*(bash|sh)": ("high", "Pipe to shell from network"),
         r"chmod\s+[0-7]*[7][0-7]*\s+": ("medium", "Overly permissive file permissions"),
@@ -88,7 +88,7 @@ class ScriptAnalyzer:
     }
 
     # Network-related patterns
-    NETWORK_PATTERNS = {
+    NETWORK_PATTERNS: ClassVar[Dict[str, Tuple[str, str]]] = {
         r"(curl|wget|nc|ncat|socat)\s+": ("low", "Network communication"),
         r"(ftp|telnet|ssh)\s+": ("low", "Remote connection"),
         r"\/dev\/(tcp|udp)\/": ("medium", "Network device access"),
@@ -97,7 +97,7 @@ class ScriptAnalyzer:
     }
 
     # Command injection patterns
-    INJECTION_PATTERNS = {
+    INJECTION_PATTERNS: ClassVar[Dict[str, Tuple[str, str]]] = {
         r"eval\s+": ("high", "Dynamic code evaluation"),
         r"exec\s+": ("medium", "Command execution"),
         r"\$\(.*\)": ("low", "Command substitution"),

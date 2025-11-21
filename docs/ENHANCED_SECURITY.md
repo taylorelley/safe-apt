@@ -14,7 +14,7 @@ safe-apt now includes **enhanced security scanning** that goes beyond traditiona
 
 ## Architecture
 
-```
+```text
 Package (.deb)
     ↓
 ┌─────────────────────────────────────────┐
@@ -231,7 +231,7 @@ scanner:
 - `/etc/passwd`, `/etc/shadow` - User databases
 
 **Suspicious SUID Binaries**:
-```
+```text
 bash, sh, dash, zsh        # Shells
 python, perl, ruby, php    # Interpreters
 nc, netcat, socat          # Network tools
@@ -606,4 +606,4 @@ For issues with enhanced scanning:
 - Verify scanner services are running
 - Ensure databases are up to date
 
-Report bugs: https://github.com/taylorelley/safe-apt/issues
+Report bugs: <https://github.com/taylorelley/safe-apt/issues>

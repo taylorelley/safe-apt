@@ -10,7 +10,7 @@ import subprocess
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import ClassVar, Dict, List, Optional, Set
 
 from ..common.logger import get_logger
 
@@ -45,7 +45,7 @@ class BinaryChecker:
     """Safety checker for binary files in Debian packages."""
 
     # Binaries that should never have SUID/SGID
-    SUSPICIOUS_SUID_BINARIES = {
+    SUSPICIOUS_SUID_BINARIES: ClassVar[Set[str]] = {
         "bash", "sh", "dash", "zsh", "ksh", "csh", "tcsh",  # Shells
         "python", "python2", "python3", "perl", "ruby", "php",  # Interpreters
         "nc", "ncat", "netcat", "socat",  # Network tools
@@ -56,7 +56,7 @@ class BinaryChecker:
     }
 
     # Paths where SUID is commonly legitimate
-    LEGITIMATE_SUID_PATHS = {
+    LEGITIMATE_SUID_PATHS: ClassVar[Set[str]] = {
         "/usr/bin/sudo",
         "/usr/bin/su",
         "/bin/su",
